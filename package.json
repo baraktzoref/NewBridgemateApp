@@ -1,0 +1,18 @@
+{
+  "name": "newbridgemateapp",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "test:movement": "cd packages/movement && node --experimental-strip-types --test test/*.test.ts",
+    "test:scoring": "cd packages/scoring && node --experimental-strip-types --test test/*.test.ts",
+    "test:shared": "cd packages/shared && node --experimental-strip-types --test test/*.test.ts",
+    "test:server": "cd packages/server && node --experimental-strip-types --experimental-sqlite --test test/*.test.ts",
+    "test": "npm run test:movement && npm run test:scoring && npm run test:shared && npm run test:server"
+  }
+}

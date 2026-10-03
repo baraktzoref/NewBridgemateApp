@@ -13,6 +13,7 @@
     "test:scoring": "cd packages/scoring && node --experimental-strip-types --test test/*.test.ts",
     "test:shared": "cd packages/shared && node --experimental-strip-types --test test/*.test.ts",
     "test:server": "cd packages/server && node --experimental-strip-types --experimental-sqlite --test test/*.test.ts",
-    "test": "npm run test:movement && npm run test:scoring && npm run test:shared && npm run test:server"
+    "test": "npm run test:movement && npm run test:scoring && npm run test:shared && npm run test:server && npm run test:api",
+    "test:api": "cd packages/api && node --experimental-strip-types --experimental-sqlite --test test/*.test.ts"
   }
 }

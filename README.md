@@ -11,6 +11,16 @@
 | `packages/scoring` | מנוע ניקוד חוזים + מטצ'פוינטס + דירוג | `npm run test:scoring` |
 | `packages/shared` | טיפוסים ו-DTOs משותפים בין השרת ללקוחות | `npm run test:shared` |
 | `packages/server` | שכבת הדומיין: DB (SQLite), אירועים, תוצאות, הרשאות/נעילה, דירוג | `npm run test:server` |
+| `packages/api` | שרת HTTP + WebSocket (ללא פריימוורק חיצוני) מעל `server` ו-`shared` | `npm run test:api` |
+
+## הרצת השרת
+
+```bash
+cd packages/api
+PORT=8080 DB_PATH=./bridge.sqlite npm start
+```
+
+נפתח על `http://0.0.0.0:8080`. נקודות קצה לטלפון השולחן תחת `/api/t/:tableToken/...`, למנהל תחת `/api/events/...`, ו-WebSocket לעדכונים חיים ב-`/ws/:eventId`.
 
 ## דרישות
 
@@ -24,4 +34,4 @@ npm test
 
 ## סטטוס
 
-ליבת הדומיין (ארבע החבילות הנ"ל) מיושמת ונבדקת. שכבת ה-HTTP/WebSocket, ה-PWA לטלפון, ומסך המנהל (Electron) עדיין לא נבנו — ראו "מצב נוכחי של הקוד" ו"פריטים פתוחים" ב-`PROJECT-DESIGN.md`.
+ליבת הדומיין וחשיפתה כשרת HTTP/WebSocket (חמש החבילות הנ"ל) מיושמות ונבדקות. ה-PWA לטלפון, מסך המנהל, ואימות מנהל (PIN) עדיין לא נבנו — ראו "מצב נוכחי של הקוד" ו"פריטים פתוחים" ב-`PROJECT-DESIGN.md`. שימו לב: נקודות הקצה של המנהל ב-`packages/api` כרגע ללא אימות (כל מי שמגיע לכתובת השרת יכול לפעול כמנהל) — זה מתוכנן להיסגר לפני פיילוט אמיתי.

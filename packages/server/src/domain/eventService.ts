@@ -8,7 +8,7 @@ import { generateMitchellForPairs } from "../../../movement/src/index.ts";
 import type { PairsParams } from "../../../movement/src/index.ts";
 import type { PlayerRef, ResultStatus } from "../../../shared/src/index.ts";
 import type { Db } from "../db/connection.ts";
-import { newEventCode, newId, newTableToken, now } from "../util.ts";
+import { hashPin, newDirectorPin, newEventCode, newId, newTableToken, now } from "../util.ts";
 
 export interface CreateEventInput {
   name: string;
@@ -16,6 +16,8 @@ export interface CreateEventInput {
   boardsPerRound: number;
   rounds?: number;
   phantomSide?: "NS" | "EW";
+  /** Lets whoever sets up the event pick the director PIN instead of getting a random one. */
+  directorPin?: string;
 }
 
 export interface CreatedEvent {
@@ -26,6 +28,12 @@ export interface CreatedEvent {
   skipAfterRound: number | null;
   /** table number -> QR token, for printing. */
   tableTokens: Map<number, string>;
+  /**
+   * The director PIN in plaintext — returned ONLY here, at creation. It is
+   * never stored or returned again (only its salted hash is persisted), so
+   * whoever creates the event must write it down now.
+   */
+  directorPin: string;
 }
 
 export function createEvent(db: Db, input: CreateEventInput): CreatedEvent {
@@ -39,13 +47,15 @@ export function createEvent(db: Db, input: CreateEventInput): CreatedEvent {
   const movement = generateMitchellForPairs(params);
   const eventId = newId();
   const eventCode = newEventCode();
+  const directorPin = input.directorPin?.trim() || newDirectorPin();
+  const { hash, salt } = hashPin(directorPin);
   const tableTokens = new Map<number, string>();
 
   db.transaction(() => {
     db.run(
-      `INSERT INTO event (id, name, event_code, tables, boards_per_round, rounds, skip_after_round, phantom_side, phantom_pair, current_round, status, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'running', ?)`,
-      [eventId, input.name, eventCode, movement.params.tables, movement.params.boardsPerRound, movement.params.rounds,
+      `INSERT INTO event (id, name, event_code, director_pin_hash, director_pin_salt, tables, boards_per_round, rounds, skip_after_round, phantom_side, phantom_pair, current_round, status, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'running', ?)`,
+      [eventId, input.name, eventCode, hash, salt, movement.params.tables, movement.params.boardsPerRound, movement.params.rounds,
         movement.params.skipAfterRound, movement.params.phantom?.side ?? null, movement.params.phantom?.pair ?? null, now()],
     );
 
@@ -71,12 +81,17 @@ export function createEvent(db: Db, input: CreateEventInput): CreatedEvent {
     }
   });
 
-  return { eventId, eventCode, tables: movement.params.tables, rounds: movement.params.rounds, skipAfterRound: movement.params.skipAfterRound, tableTokens };
+  return {
+    eventId, eventCode, tables: movement.params.tables, rounds: movement.params.rounds,
+    skipAfterRound: movement.params.skipAfterRound, tableTokens, directorPin,
+  };
 }
 
 export interface EventRow {
   id: string;
   event_code: string;
+  director_pin_hash: string;
+  director_pin_salt: string;
   tables: number;
   boards_per_round: number;
   rounds: number;
@@ -86,6 +101,12 @@ export interface EventRow {
 
 export function getEvent(db: Db, eventId: string): EventRow | undefined {
   return db.get<EventRow>(`SELECT * FROM event WHERE id = ?`, [eventId]);
+}
+
+/** Strips the director PIN's hash/salt — this is the shape safe to hand back over the API. */
+export function publicEvent(row: EventRow): Omit<EventRow, "director_pin_hash" | "director_pin_salt"> {
+  const { director_pin_hash, director_pin_salt, ...rest } = row;
+  return rest;
 }
 
 export function getEventByTableToken(db: Db, tableToken: string): { event: EventRow; table: number } | undefined {

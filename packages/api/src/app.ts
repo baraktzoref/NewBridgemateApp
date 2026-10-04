@@ -6,13 +6,14 @@
  * "how a task runs" for why this layer stays dumb on purpose.
  */
 import { createServer } from "node:http";
-import type { Server } from "node:http";
+import type { IncomingMessage, Server } from "node:http";
 import { serveStatic } from "./http/staticFiles.ts";
 import { Db } from "../../server/src/db/connection.ts";
 import { migrate } from "../../server/src/db/schema.ts";
 import {
-  createEvent, getEvent, getEventByTableToken, identifyPair, advanceRound,
+  createEvent, getEvent, getEventByTableToken, identifyPair, advanceRound, publicEvent,
 } from "../../server/src/domain/eventService.ts";
+import { directorLogin, directorLogout, requireDirector } from "../../server/src/domain/directorService.ts";
 import {
   submitResult, confirmResult, directorEditResult, directorOverrideResult, toResultDto,
 } from "../../server/src/domain/resultService.ts";
@@ -23,7 +24,7 @@ import {
 import {
   parseConnectRequest, parseTakeoverRequest, parsePairIdentificationRequest, parseResultSubmission,
   parseConfirmResultRequest, parseCallDirectorRequest, parseDirectorEditResultRequest,
-  parseDirectorOverrideRequest, parseTableLockRequest,
+  parseDirectorOverrideRequest, parseTableLockRequest, parseDirectorLoginRequest,
 } from "../../shared/src/index.ts";
 import { Router } from "./http/router.ts";
 import { readJsonBody, sendError, sendJson } from "./http/respond.ts";
@@ -41,6 +42,20 @@ function resolveTable(db: Db, tableToken: string, res: Parameters<typeof sendErr
   const found = getEventByTableToken(db, tableToken);
   if (!found) { sendError(res, 404, "unknown table token", "NOT_FOUND"); return null; }
   return { eventId: found.event.id, table: found.table };
+}
+
+/**
+ * Every director-only route calls this first. The token travels as a plain
+ * bearer header (`X-Director-Token`), scoped to one event — see
+ * directorService.requireDirector for why a token minted for event A can't
+ * be replayed against event B. Throws DirectorError("UNAUTHORIZED") on any
+ * failure, which the route's own catch block maps to a 401 via
+ * statusForError; callers never need their own null-check.
+ */
+function requireDirectorToken(db: Db, eventId: string, req: IncomingMessage): void {
+  const header = req.headers["x-director-token"];
+  const token = Array.isArray(header) ? header[0] : header;
+  requireDirector(db, eventId, token);
 }
 
 export function createApp(dbPath = ":memory:"): App {
@@ -65,11 +80,16 @@ export function createApp(dbPath = ":memory:"): App {
         name: b.name, pairs: b.pairs, boardsPerRound: b.boardsPerRound,
         rounds: typeof b.rounds === "number" ? b.rounds : undefined,
         phantomSide: b.phantomSide === "NS" || b.phantomSide === "EW" ? b.phantomSide : undefined,
+        directorPin: typeof b.directorPin === "string" ? b.directorPin : undefined,
       });
       sendJson(res, 201, {
         eventId: created.eventId, eventCode: created.eventCode, tables: created.tables,
         rounds: created.rounds, skipAfterRound: created.skipAfterRound,
         tableTokens: Object.fromEntries(created.tableTokens),
+        // Plaintext PIN, returned exactly once — the caller (whoever is setting
+        // up tonight's event) must write it down now; it is never stored or
+        // returned again (see eventService.createEvent / publicEvent).
+        directorPin: created.directorPin,
       });
     } catch (e) {
       const { status, message, code } = statusForError(e);
@@ -80,7 +100,28 @@ export function createApp(dbPath = ":memory:"): App {
   router.get("/api/events/:eventId", ({ res, params }) => {
     const event = getEvent(db, params.eventId!);
     if (!event) return sendError(res, 404, "event not found", "NOT_FOUND");
-    sendJson(res, 200, event);
+    sendJson(res, 200, publicEvent(event));
+  });
+
+  router.post("/api/events/:eventId/director-login", async ({ req, res, params }) => {
+    let body: unknown;
+    try { body = await readJsonBody(req); } catch (e) { return sendError(res, 400, (e as Error).message); }
+    const parsed = parseDirectorLoginRequest(body);
+    if (!parsed.ok) return sendError(res, 400, parsed.errors.join("; "));
+    try {
+      const session = directorLogin(db, params.eventId!, parsed.value.pin);
+      sendJson(res, 201, { directorToken: session.token, eventId: session.event_id });
+    } catch (e) {
+      const { status, message, code } = statusForError(e);
+      sendError(res, status, message, code ?? undefined);
+    }
+  });
+
+  router.post("/api/events/:eventId/director-logout", async ({ req, res }) => {
+    const header = req.headers["x-director-token"];
+    const token = Array.isArray(header) ? header[0] : header;
+    if (token) directorLogout(db, token);
+    sendJson(res, 200, { ok: true });
   });
 
   router.post("/api/events/:eventId/round", async ({ req, res, params }) => {
@@ -89,6 +130,7 @@ export function createApp(dbPath = ":memory:"): App {
     const round = (body as { round?: unknown })?.round;
     if (typeof round !== "number") return sendError(res, 400, "round (number) is required");
     try {
+      requireDirectorToken(db, params.eventId!, req);
       advanceRound(db, params.eventId!, round);
       wsHub.broadcast(params.eventId!, { type: "round_started", round });
       sendJson(res, 200, { ok: true, round });
@@ -115,6 +157,7 @@ export function createApp(dbPath = ":memory:"): App {
     try {
       const { eventId } = params;
       const table = Number(params.table);
+      requireDirectorToken(db, eventId!, req);
       if (parsed.value.action === "lock") { lockTable(db, eventId!, table); wsHub.broadcast(eventId!, { type: "table_locked", table }); }
       else { unlockTable(db, eventId!, table); wsHub.broadcast(eventId!, { type: "table_unlocked", table }); }
       sendJson(res, 200, { ok: true });
@@ -124,8 +167,9 @@ export function createApp(dbPath = ":memory:"): App {
     }
   });
 
-  router.post("/api/events/:eventId/table/:table/disconnect", ({ res, params }) => {
+  router.post("/api/events/:eventId/table/:table/disconnect", ({ req, res, params }) => {
     try {
+      requireDirectorToken(db, params.eventId!, req);
       disconnectDevice(db, params.eventId!, Number(params.table));
       sendJson(res, 200, { ok: true });
     } catch (e) {
@@ -140,6 +184,7 @@ export function createApp(dbPath = ":memory:"): App {
     const parsed = parseDirectorEditResultRequest({ ...(body as object), resultId: params.resultId });
     if (!parsed.ok) return sendError(res, 400, parsed.errors.join("; "));
     try {
+      requireDirectorToken(db, params.eventId!, req);
       const r = directorEditResult(db, params.eventId!, parsed.value.resultId, parsed.value.result, parsed.value.ifVersion);
       wsHub.broadcast(params.eventId!, { type: "result_changed_by_director", result: toResultDto(r) });
       wsHub.broadcast(params.eventId!, { type: "ranking_updated" });
@@ -156,6 +201,7 @@ export function createApp(dbPath = ":memory:"): App {
     const parsed = parseDirectorOverrideRequest({ ...(body as object), resultId: params.resultId });
     if (!parsed.ok) return sendError(res, 400, parsed.errors.join("; "));
     try {
+      requireDirectorToken(db, params.eventId!, req);
       const v = parsed.value;
       const r = directorOverrideResult(db, params.eventId!, v.resultId, v.adjustedNsPct, v.adjustedEwPct, v.ifVersion);
       wsHub.broadcast(params.eventId!, { type: "result_changed_by_director", result: toResultDto(r) });

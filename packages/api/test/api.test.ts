@@ -11,12 +11,13 @@ async function startApp() {
   const base = `http://127.0.0.1:${port}`;
 
   const api = {
-    get: (path: string) => fetch(`${base}${path}`).then((r) => r.json().then((body) => ({ status: r.status, body }))),
-    post: (path: string, body?: unknown) =>
-      fetch(`${base}${path}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body ?? {}) })
+    get: (path: string, headers?: Record<string, string>) =>
+      fetch(`${base}${path}`, { headers }).then((r) => r.json().then((body) => ({ status: r.status, body }))),
+    post: (path: string, body?: unknown, headers?: Record<string, string>) =>
+      fetch(`${base}${path}`, { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(body ?? {}) })
         .then((r) => r.json().then((b) => ({ status: r.status, body: b }))),
-    put: (path: string, body?: unknown) =>
-      fetch(`${base}${path}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body ?? {}) })
+    put: (path: string, body?: unknown, headers?: Record<string, string>) =>
+      fetch(`${base}${path}`, { method: "PUT", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(body ?? {}) })
         .then((r) => r.json().then((b) => ({ status: r.status, body: b }))),
     wsUrl: (eventId: string) => `ws://127.0.0.1:${port}/ws/${eventId}`,
     base,
@@ -36,7 +37,17 @@ async function startApp() {
 
 async function createTestEvent(api: Awaited<ReturnType<typeof startApp>>["api"], pairs = 20, boardsPerRound = 3) {
   const { body } = await api.post("/api/events", { name: "Test night", pairs, boardsPerRound });
-  return body as { eventId: string; eventCode: string; tables: number; rounds: number; tableTokens: Record<string, string> };
+  return body as {
+    eventId: string; eventCode: string; tables: number; rounds: number;
+    tableTokens: Record<string, string>; directorPin: string;
+  };
+}
+
+/** Logs in as director for `created` and returns the header to attach to subsequent requests. */
+async function directorAuthHeader(api: Awaited<ReturnType<typeof startApp>>["api"], created: { eventId: string; directorPin: string }) {
+  const { status, body } = await api.post(`/api/events/${created.eventId}/director-login`, { pin: created.directorPin });
+  assert.equal(status, 201, "director login should succeed with the PIN createEvent returned");
+  return { "X-Director-Token": (body as { directorToken: string }).directorToken };
 }
 
 // ---------------------------------------------------------------------------
@@ -152,9 +163,11 @@ test("director lock blocks the table phone's submission over HTTP, confirmed via
   const { api, close } = await startApp();
   try {
     const created = await createTestEvent(api);
+    const directorHeader = await directorAuthHeader(api, created);
     const token1 = created.tableTokens["1"]!;
     await api.post(`/api/t/${token1}/connect`, { tableToken: token1, eventCode: created.eventCode });
-    await api.post(`/api/events/${created.eventId}/table/1/lock`, { action: "lock" });
+    const lock = await api.post(`/api/events/${created.eventId}/table/1/lock`, { action: "lock" }, directorHeader);
+    assert.equal(lock.status, 200);
     const r = await api.post(`/api/t/${token1}/result`, { clientEventId: "c1", round: 1, board: 1, result: { kind: "passout" } });
     assert.equal(r.status, 423);
     assert.equal((r.body as { code: string }).code, "LOCKED");
@@ -167,6 +180,7 @@ test("director can edit a result with optimistic concurrency (ifVersion) over HT
   const { api, close } = await startApp();
   try {
     const created = await createTestEvent(api);
+    const directorHeader = await directorAuthHeader(api, created);
     const token1 = created.tableTokens["1"]!;
     await api.post(`/api/t/${token1}/connect`, { tableToken: token1, eventCode: created.eventCode });
     const submit = await api.post(`/api/t/${token1}/result`, {
@@ -174,10 +188,10 @@ test("director can edit a result with optimistic concurrency (ifVersion) over HT
     });
     const resultId = (submit.body as { id: string }).id;
 
-    const stale = await api.put(`/api/events/${created.eventId}/result/${resultId}`, { ifVersion: 99, result: { kind: "passout" } });
+    const stale = await api.put(`/api/events/${created.eventId}/result/${resultId}`, { ifVersion: 99, result: { kind: "passout" } }, directorHeader);
     assert.equal(stale.status, 409);
 
-    const ok = await api.put(`/api/events/${created.eventId}/result/${resultId}`, { ifVersion: 1, result: { kind: "passout" } });
+    const ok = await api.put(`/api/events/${created.eventId}/result/${resultId}`, { ifVersion: 1, result: { kind: "passout" } }, directorHeader);
     assert.equal(ok.status, 200);
     assert.equal((ok.body as { nsScore: number }).nsScore, 0);
   } finally {
@@ -189,13 +203,14 @@ test("director override assigns a fixed percentage over HTTP", async () => {
   const { api, close } = await startApp();
   try {
     const created = await createTestEvent(api);
+    const directorHeader = await directorAuthHeader(api, created);
     const token1 = created.tableTokens["1"]!;
     await api.post(`/api/t/${token1}/connect`, { tableToken: token1, eventCode: created.eventCode });
     const submit = await api.post(`/api/t/${token1}/result`, {
       clientEventId: "c1", round: 1, board: 1, result: { kind: "played", contractText: "4S", declarer: "N", tricks: 10 },
     });
     const resultId = (submit.body as { id: string }).id;
-    const r = await api.post(`/api/events/${created.eventId}/result/${resultId}/override`, { adjustedNsPct: 60, adjustedEwPct: 40 });
+    const r = await api.post(`/api/events/${created.eventId}/result/${resultId}/override`, { adjustedNsPct: 60, adjustedEwPct: 40 }, directorHeader);
     assert.equal(r.status, 200);
     assert.equal((r.body as { status: string }).status, "adjusted");
   } finally {
@@ -207,7 +222,9 @@ test("GET standings reflects submitted results", async () => {
   const { api, close } = await startApp();
   try {
     const created = await createTestEvent(api, 6, 1);
-    await api.post(`/api/events/${created.eventId}/round`, { round: 1 });
+    const directorHeader = await directorAuthHeader(api, created);
+    const roundRes = await api.post(`/api/events/${created.eventId}/round`, { round: 1 }, directorHeader);
+    assert.equal(roundRes.status, 200);
     const standings = await api.get(`/api/events/${created.eventId}/standings`);
     assert.equal(standings.status, 200);
     assert.ok(Array.isArray((standings.body as { ns: unknown[] }).ns));
@@ -307,6 +324,108 @@ test("serves the PWA app shell for GET / and for a deep /t/:tableToken link, wit
     const { status, body } = await api.get("/api/does-not-exist");
     assert.equal(status, 404);
     assert.equal((body as { code: string }).code, "NOT_FOUND");
+  } finally {
+    await close();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Director authentication (level-1 authority, design doc 3.2)
+// ---------------------------------------------------------------------------
+
+test("director-login succeeds with the PIN from createEvent and fails with a wrong one", async () => {
+  const { api, close } = await startApp();
+  try {
+    const created = await createTestEvent(api);
+    const bad = await api.post(`/api/events/${created.eventId}/director-login`, { pin: "000000" });
+    assert.equal(bad.status, 401);
+    assert.equal((bad.body as { code: string }).code, "BAD_PIN");
+
+    const good = await api.post(`/api/events/${created.eventId}/director-login`, { pin: created.directorPin });
+    assert.equal(good.status, 201);
+    assert.ok((good.body as { directorToken: string }).directorToken);
+  } finally {
+    await close();
+  }
+});
+
+test("director-only routes reject requests with no token, and with a token from a different event", async () => {
+  const { api, close } = await startApp();
+  try {
+    const created = await createTestEvent(api);
+    const other = await createTestEvent(api);
+    const otherHeader = await directorAuthHeader(api, other);
+
+    const noToken = await api.post(`/api/events/${created.eventId}/table/1/lock`, { action: "lock" });
+    assert.equal(noToken.status, 401);
+    assert.equal((noToken.body as { code: string }).code, "UNAUTHORIZED");
+
+    const wrongEventToken = await api.post(`/api/events/${created.eventId}/table/1/lock`, { action: "lock" }, otherHeader);
+    assert.equal(wrongEventToken.status, 401);
+
+    const ownToken = await directorAuthHeader(api, created);
+    const ok = await api.post(`/api/events/${created.eventId}/table/1/lock`, { action: "lock" }, ownToken);
+    assert.equal(ok.status, 200);
+  } finally {
+    await close();
+  }
+});
+
+test("GET /api/events/:eventId never leaks the director PIN hash/salt", async () => {
+  const { api, close } = await startApp();
+  try {
+    const created = await createTestEvent(api);
+    const { body } = await api.get(`/api/events/${created.eventId}`);
+    const keys = Object.keys(body as object);
+    assert.ok(!keys.includes("director_pin_hash"));
+    assert.ok(!keys.includes("director_pin_salt"));
+  } finally {
+    await close();
+  }
+});
+
+test("director-logout revokes the token so the same route then rejects it", async () => {
+  const { api, close } = await startApp();
+  try {
+    const created = await createTestEvent(api);
+    const header = await directorAuthHeader(api, created);
+    await api.post(`/api/events/${created.eventId}/director-logout`, {}, header);
+    const afterLogout = await api.post(`/api/events/${created.eventId}/table/1/lock`, { action: "lock" }, header);
+    assert.equal(afterLogout.status, 401);
+  } finally {
+    await close();
+  }
+});
+
+test("disconnect and override routes are also director-gated", async () => {
+  const { api, close } = await startApp();
+  try {
+    const created = await createTestEvent(api);
+    const token1 = created.tableTokens["1"]!;
+    await api.post(`/api/t/${token1}/connect`, { tableToken: token1, eventCode: created.eventCode });
+
+    const noAuthDisconnect = await api.post(`/api/events/${created.eventId}/table/1/disconnect`);
+    assert.equal(noAuthDisconnect.status, 401);
+
+    const header = await directorAuthHeader(api, created);
+    const authedDisconnect = await api.post(`/api/events/${created.eventId}/table/1/disconnect`, {}, header);
+    assert.equal(authedDisconnect.status, 200);
+  } finally {
+    await close();
+  }
+});
+
+test("round-advance route is director-gated too (401 without a token, 200 with the right one)", async () => {
+  const { api, close } = await startApp();
+  try {
+    const created = await createTestEvent(api, 6, 1);
+    const noAuth = await api.post(`/api/events/${created.eventId}/round`, { round: 1 });
+    assert.equal(noAuth.status, 401);
+    assert.equal((noAuth.body as { code: string }).code, "UNAUTHORIZED");
+
+    const header = await directorAuthHeader(api, created);
+    const authed = await api.post(`/api/events/${created.eventId}/round`, { round: 1 }, header);
+    assert.equal(authed.status, 200);
   } finally {
     await close();
   }

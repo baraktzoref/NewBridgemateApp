@@ -39,8 +39,20 @@ async function createEvent(base: string, pairs: number, boardsPerRound: number) 
     body: JSON.stringify({ name: "E2E night", pairs, boardsPerRound }),
   });
   return (await res.json()) as {
-    eventId: string; eventCode: string; tables: number; rounds: number; tableTokens: Record<string, string>;
+    eventId: string; eventCode: string; tables: number; rounds: number;
+    tableTokens: Record<string, string>; directorPin: string;
   };
+}
+
+/** Logs in as director (PIN from createEvent) and returns the bearer token for director-only routes. */
+async function directorToken(base: string, eventId: string, pin: string) {
+  const res = await fetch(`${base}/api/events/${eventId}/director-login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ pin }),
+  });
+  const body = (await res.json()) as { directorToken: string };
+  return body.directorToken;
 }
 
 test("full table flow in a real browser: connect -> identify NS+EW -> enter result -> EW confirms", async (t) => {
@@ -145,10 +157,11 @@ test("a locked table blocks result submission and the phone shows the lock banne
       await page.click("#identify-form button[type=submit]");
       await page.waitForSelector("#screen-round:not(.hidden)");
 
-      // Director locks the table out from under the live page.
+      // Director logs in with the PIN createEvent returned, then locks the table out from under the live page.
+      const token = await directorToken(base, created.eventId, created.directorPin);
       const lockRes = await fetch(`${base}/api/events/${created.eventId}/table/1/lock`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", "x-director-token": token },
         body: JSON.stringify({ table: 1, action: "lock" }),
       });
       assert.equal(lockRes.status, 200);

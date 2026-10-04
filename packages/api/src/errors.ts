@@ -1,5 +1,6 @@
 import { ServerError } from "../../server/src/domain/resultService.ts";
 import { DeviceError } from "../../server/src/domain/deviceService.ts";
+import { DirectorError } from "../../server/src/domain/directorService.ts";
 
 /**
  * Maps a domain error's `code` to an HTTP status. Kept as one table rather than
@@ -15,10 +16,12 @@ const STATUS_BY_CODE: Record<string, number> = {
   LOCKED: 423,
   ALREADY_CONFIRMED: 409,
   VALIDATION: 400,
+  BAD_PIN: 401,
+  UNAUTHORIZED: 401,
 };
 
 export function statusForError(err: unknown): { status: number; message: string; code: string | null } {
-  if (err instanceof ServerError || err instanceof DeviceError) {
+  if (err instanceof ServerError || err instanceof DeviceError || err instanceof DirectorError) {
     return { status: STATUS_BY_CODE[err.code] ?? 500, message: err.message, code: err.code };
   }
   if (err instanceof RangeError) return { status: 400, message: err.message, code: null };

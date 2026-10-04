@@ -11,12 +11,20 @@ import type { Db } from "./connection.ts";
  *   retried offline-queue entry never creates a second row (see ResultService).
  * - `version` is bumped on every edit and is the optimistic-concurrency token
  *   DirectorEditResultRequest.ifVersion is checked against.
+ * - `event.director_pin_hash`/`_salt` hold a salted scrypt hash of the
+ *   director's PIN, never the plaintext (see util.ts hashPin/verifyPin) — the
+ *   plaintext is only ever returned once, from createEvent's response.
+ * - `director_session` is the level-1 authority's equivalent of
+ *   `device_session`: a bearer token minted by directorLogin after the PIN
+ *   checks out, required by every director-only route (see directorService.ts).
  */
 export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS event (
   id              TEXT PRIMARY KEY,
   name            TEXT NOT NULL,
   event_code      TEXT NOT NULL,
+  director_pin_hash TEXT NOT NULL,
+  director_pin_salt TEXT NOT NULL,
   tables          INTEGER NOT NULL,
   boards_per_round INTEGER NOT NULL,
   rounds          INTEGER NOT NULL,
@@ -91,6 +99,15 @@ CREATE TABLE IF NOT EXISTS device_session (
   table_number    INTEGER NOT NULL,
   device_token    TEXT NOT NULL UNIQUE,
   connected_at    TEXT NOT NULL,
+  last_seen_at    TEXT NOT NULL,
+  is_active       INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS director_session (
+  id              TEXT PRIMARY KEY,
+  event_id        TEXT NOT NULL REFERENCES event(id),
+  token           TEXT NOT NULL UNIQUE,
+  created_at      TEXT NOT NULL,
   last_seen_at    TEXT NOT NULL,
   is_active       INTEGER NOT NULL DEFAULT 1
 );

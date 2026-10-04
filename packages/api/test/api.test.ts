@@ -19,6 +19,7 @@ async function startApp() {
       fetch(`${base}${path}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body ?? {}) })
         .then((r) => r.json().then((b) => ({ status: r.status, body: b }))),
     wsUrl: (eventId: string) => `ws://127.0.0.1:${port}/ws/${eventId}`,
+    base,
   };
 
   return {
@@ -278,6 +279,34 @@ test("WebSocket: a client watching a different eventId never receives the broadc
     } finally {
       wsOther.close();
     }
+  } finally {
+    await close();
+  }
+});
+
+test("serves the PWA app shell for GET / and for a deep /t/:tableToken link, with API routes untouched", async () => {
+  const { api, close } = await startApp();
+  try {
+    const { base } = api;
+
+    const home = await fetch(`${base}/`);
+    assert.equal(home.status, 200);
+    assert.match(home.headers.get("content-type") ?? "", /text\/html/);
+    const html = await home.text();
+    assert.match(html, /<html/i);
+
+    const deepLink = await fetch(`${base}/t/some-table-token`);
+    assert.equal(deepLink.status, 200);
+    assert.match(deepLink.headers.get("content-type") ?? "", /text\/html/);
+
+    const js = await fetch(`${base}/js/app.js`);
+    assert.equal(js.status, 200);
+    assert.match(js.headers.get("content-type") ?? "", /javascript/);
+
+    // An unknown API path still 404s through the ordinary JSON error path, not the static fallback.
+    const { status, body } = await api.get("/api/does-not-exist");
+    assert.equal(status, 404);
+    assert.equal((body as { code: string }).code, "NOT_FOUND");
   } finally {
     await close();
   }

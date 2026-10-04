@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>שולחן הברידג'</title>
+<link rel="manifest" href="/manifest.webmanifest" />
+<meta name="theme-color" content="#1b4332" />
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+<div id="app-root">
+  <header>
+    <h1>שולחן ברידג'</h1>
+    <button id="call-director-btn" type="button" class="btn-director">קריאה למנהל</button>
+  </header>
+  <div id="status-bar" role="status"></div>
+  <div id="lock-banner" class="hidden">השולחן נעול ע״י המנהל — לא ניתן להזין תוצאות כרגע</div>
+
+  <main>
+    <section id="screen-missing-token" class="screen hidden">
+      <p>לא נמצא קוד שולחן בכתובת. סרקו את הברקוד שעל השולחן.</p>
+    </section>
+
+    <section id="screen-connect" class="screen hidden">
+      <h2>התחברות לשולחן</h2>
+      <form id="connect-form">
+        <label>קוד האירוע (4 ספרות, מוצג על מסך המנהל)
+          <input id="connect-event-code" name="eventCode" inputmode="numeric" maxlength="16" required autofocus />
+        </label>
+        <label>תווית מכשיר (לא חובה)
+          <input id="connect-device-label" name="deviceLabel" maxlength="60" />
+        </label>
+        <button type="submit" class="btn-primary">התחבר</button>
+      </form>
+    </section>
+
+    <section id="screen-identify" class="screen hidden">
+      <h2>זיהוי זוג — <span id="identify-side-label"></span></h2>
+      <form id="identify-form">
+        <fieldset>
+          <legend>שחקן 1</legend>
+          <label>מספר חבר (אם יש)
+            <input name="member1" inputmode="numeric" />
+          </label>
+          <label>או שם אורח
+            <input name="guest1" />
+          </label>
+        </fieldset>
+        <fieldset>
+          <legend>שחקן 2</legend>
+          <label>מספר חבר (אם יש)
+            <input name="member2" inputmode="numeric" />
+          </label>
+          <label>או שם אורח
+            <input name="guest2" />
+          </label>
+        </fieldset>
+        <button type="submit" class="btn-primary">שמור זיהוי</button>
+      </form>
+    </section>
+
+    <section id="screen-round" class="screen hidden">
+      <h2>סיבוב <span id="round-number"></span></h2>
+      <p>צפון-דרום: זוג <strong id="round-ns-pair"></strong> &nbsp;|&nbsp; מזרח-מערב: זוג <strong id="round-ew-pair"></strong></p>
+      <ul id="board-list" class="board-list"></ul>
+    </section>
+
+    <section id="screen-result-entry" class="screen hidden">
+      <h2>תוצאה — בורד <span id="result-entry-board"></span></h2>
+      <form id="result-entry-form">
+        <label class="checkbox-row">
+          <input type="checkbox" name="passout" />
+          כל השחקנים עברו (Pass Out)
+        </label>
+        <label>חוזה (למשל 4S, 3NTX, 7NTXX)
+          <input name="contractText" maxlength="6" />
+        </label>
+        <fieldset class="seat-picker">
+          <legend>מכריז</legend>
+          <label><input type="radio" name="declarer" value="N" /> צפון</label>
+          <label><input type="radio" name="declarer" value="E" /> מזרח</label>
+          <label><input type="radio" name="declarer" value="S" /> דרום</label>
+          <label><input type="radio" name="declarer" value="W" /> מערב</label>
+        </fieldset>
+        <label>לקיחות שנלקחו
+          <input name="tricks" type="number" min="0" max="13" />
+        </label>
+        <p id="result-entry-error" class="error-text"></p>
+        <div class="button-row">
+          <button type="button" id="back-to-round-btn" class="btn-secondary">ביטול</button>
+          <button type="submit" class="btn-primary">שלח תוצאה</button>
+        </div>
+      </form>
+    </section>
+
+    <section id="screen-confirm" class="screen hidden">
+      <h2>אישור יריבים</h2>
+      <p id="confirm-summary"></p>
+      <p>מזרח-מערב: האם זו התוצאה שתועדה בשולחנכם?</p>
+      <div class="button-row">
+        <button id="confirm-reject" type="button" class="btn-secondary">לא תואם</button>
+        <button id="confirm-accept" type="button" class="btn-primary">מאשר</button>
+      </div>
+    </section>
+  </main>
+</div>
+<script type="module" src="/js/app.js"></script>
+</body>
+</html>

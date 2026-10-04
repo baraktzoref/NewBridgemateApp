@@ -1,0 +1,10 @@
+{
+  "name": "@bridge/pwa",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --experimental-strip-types --test test/unit/*.test.ts",
+    "test:e2e": "node --experimental-strip-types --experimental-sqlite --test test/e2e/*.test.ts",
+    "test:all": "npm run test && npm run test:e2e"
+  }
+}

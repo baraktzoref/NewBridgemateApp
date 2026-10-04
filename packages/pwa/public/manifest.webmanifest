@@ -1,0 +1,17 @@
+{
+  "name": "שולחן ברידג'",
+  "short_name": "ברידג'",
+  "description": "הזנת תוצאות וזיהוי זוגות בשולחן טורניר ברידג'",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f4f6f4",
+  "theme_color": "#1b4332",
+  "dir": "rtl",
+  "lang": "he",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

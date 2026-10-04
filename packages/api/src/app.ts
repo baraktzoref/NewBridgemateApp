@@ -7,6 +7,7 @@
  */
 import { createServer } from "node:http";
 import type { Server } from "node:http";
+import { serveStatic } from "./http/staticFiles.ts";
 import { Db } from "../../server/src/db/connection.ts";
 import { migrate } from "../../server/src/db/schema.ts";
 import {
@@ -305,13 +306,22 @@ export function createApp(dbPath = ":memory:"): App {
   const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://internal");
     const matched = router.match(req.method ?? "GET", url.pathname);
-    if (!matched) return sendError(res, 404, "not found", "NOT_FOUND");
-    try {
-      await matched.handler({ req, res, params: matched.params, query: url.searchParams });
-    } catch (e) {
-      const { status, message, code } = statusForError(e);
-      sendError(res, status, message, code ?? undefined);
+    if (matched) {
+      try {
+        await matched.handler({ req, res, params: matched.params, query: url.searchParams });
+      } catch (e) {
+        const { status, message, code } = statusForError(e);
+        sendError(res, status, message, code ?? undefined);
+      }
+      return;
     }
+    // Not an API/WS route: serve the table PWA's static files (same origin,
+    // so the phone never hits a cross-origin request to reach the API).
+    if ((req.method ?? "GET") === "GET" && !url.pathname.startsWith("/api/") && !url.pathname.startsWith("/ws/")) {
+      const served = await serveStatic(url.pathname, res);
+      if (served) return;
+    }
+    sendError(res, 404, "not found", "NOT_FOUND");
   });
   wsHub.attach(server);
 

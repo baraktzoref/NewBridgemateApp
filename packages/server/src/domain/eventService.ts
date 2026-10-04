@@ -89,6 +89,7 @@ export function createEvent(db: Db, input: CreateEventInput): CreatedEvent {
 
 export interface EventRow {
   id: string;
+  name: string;
   event_code: string;
   director_pin_hash: string;
   director_pin_salt: string;

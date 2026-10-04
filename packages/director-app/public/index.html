@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>מסך מנהל — ברידג'</title>
+<link rel="stylesheet" href="/director/styles.css" />
+</head>
+<body>
+<div id="app-root">
+  <header>
+    <h1>מסך מנהל</h1>
+    <div id="header-event-info" class="hidden">
+      <span id="event-name"></span>
+      <span id="round-info"></span>
+      <button id="advance-round-btn" type="button" class="btn-small">סיבוב הבא</button>
+      <button id="logout-btn" type="button" class="btn-small btn-danger">התנתק</button>
+    </div>
+  </header>
+  <div id="status-bar" role="status"></div>
+
+  <main>
+    <section id="screen-login" class="screen hidden">
+      <h2>התחברות מנהל</h2>
+      <form id="login-form">
+        <label>מזהה אירוע (eventId)
+          <input id="login-event-id" name="eventId" required />
+        </label>
+        <label>קוד PIN
+          <input id="login-pin" name="pin" inputmode="numeric" maxlength="6" required autofocus />
+        </label>
+        <button type="submit" class="btn-primary">התחבר</button>
+      </form>
+    </section>
+
+    <section id="screen-dashboard" class="screen hidden">
+      <section id="alerts-section">
+        <h2>קריאות למנהל</h2>
+        <ul id="director-alerts" class="alerts-list"></ul>
+      </section>
+
+      <section id="tables-section">
+        <h2>שולחנות</h2>
+        <div id="table-grid" class="table-grid"></div>
+      </section>
+    </section>
+  </main>
+
+  <div id="edit-modal" class="modal hidden">
+    <div class="modal-content">
+      <h3>עריכת תוצאה — בורד <span id="edit-board"></span></h3>
+      <form id="edit-form">
+        <label class="checkbox-row">
+          <input type="checkbox" name="passout" />
+          כל השחקנים עברו (Pass Out)
+        </label>
+        <label>חוזה
+          <input name="contractText" maxlength="6" />
+        </label>
+        <fieldset class="seat-picker">
+          <legend>מכריז</legend>
+          <label><input type="radio" name="declarer" value="N" /> צפון</label>
+          <label><input type="radio" name="declarer" value="E" /> מזרח</label>
+          <label><input type="radio" name="declarer" value="S" /> דרום</label>
+          <label><input type="radio" name="declarer" value="W" /> מערב</label>
+        </fieldset>
+        <label>לקיחות
+          <input name="tricks" type="number" min="0" max="13" />
+        </label>
+        <p id="edit-error" class="error-text"></p>
+        <div class="button-row">
+          <button type="button" id="edit-cancel-btn" class="btn-secondary">ביטול</button>
+          <button type="submit" class="btn-primary">שמור</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="override-modal" class="modal hidden">
+    <div class="modal-content">
+      <h3>תוצאה מותאמת — בורד <span id="override-board"></span></h3>
+      <form id="override-form">
+        <label>אחוז NS
+          <input name="adjustedNsPct" type="number" min="0" max="100" required />
+        </label>
+        <label>אחוז EW
+          <input name="adjustedEwPct" type="number" min="0" max="100" required />
+        </label>
+        <p class="hint">לדוגמה: Average 50/50, Average+ 60/40.</p>
+        <p id="override-error" class="error-text"></p>
+        <div class="button-row">
+          <button type="button" id="override-cancel-btn" class="btn-secondary">ביטול</button>
+          <button type="submit" class="btn-primary">קבע תוצאה</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<script type="module" src="/director/js/app.js"></script>
+</body>
+</html>

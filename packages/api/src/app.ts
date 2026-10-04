@@ -7,7 +7,7 @@
  */
 import { createServer } from "node:http";
 import type { IncomingMessage, Server } from "node:http";
-import { serveStatic } from "./http/staticFiles.ts";
+import { directorAppStatic, pwaStatic } from "./http/staticFiles.ts";
 import { Db } from "../../server/src/db/connection.ts";
 import { migrate } from "../../server/src/db/schema.ts";
 import {
@@ -31,6 +31,7 @@ import { readJsonBody, sendError, sendJson } from "./http/respond.ts";
 import { statusForError } from "./errors.ts";
 import { WsHub } from "./ws/wsServer.ts";
 import { buildTableState } from "./tableState.ts";
+import { buildEventOverview } from "./directorOverview.ts";
 
 export interface App {
   server: Server;
@@ -65,7 +66,8 @@ export function createApp(dbPath = ":memory:"): App {
   const router = new Router();
 
   // -------------------------------------------------------------------------
-  // Director: event lifecycle (no director authentication yet — see README)
+  // Director: event lifecycle (mutating routes require X-Director-Token —
+  // see directorService.requireDirector / requireDirectorToken below)
   // -------------------------------------------------------------------------
 
   router.post("/api/events", async ({ req, res }) => {
@@ -134,6 +136,16 @@ export function createApp(dbPath = ":memory:"): App {
       advanceRound(db, params.eventId!, round);
       wsHub.broadcast(params.eventId!, { type: "round_started", round });
       sendJson(res, 200, { ok: true, round });
+    } catch (e) {
+      const { status, message, code } = statusForError(e);
+      sendError(res, status, message, code ?? undefined);
+    }
+  });
+
+  router.get("/api/events/:eventId/overview", ({ req, res, params }) => {
+    try {
+      requireDirectorToken(db, params.eventId!, req);
+      sendJson(res, 200, buildEventOverview(db, params.eventId!));
     } catch (e) {
       const { status, message, code } = statusForError(e);
       sendError(res, status, message, code ?? undefined);
@@ -361,11 +373,17 @@ export function createApp(dbPath = ":memory:"): App {
       }
       return;
     }
-    // Not an API/WS route: serve the table PWA's static files (same origin,
-    // so the phone never hits a cross-origin request to reach the API).
+    // Not an API/WS route: serve one of the two static apps, same origin as
+    // the API so neither the table phone nor the director screen hits CORS.
+    // "/director" (and anything under it) is the director's screen; every
+    // other GET falls through to the table PWA at the root.
     if ((req.method ?? "GET") === "GET" && !url.pathname.startsWith("/api/") && !url.pathname.startsWith("/ws/")) {
-      const served = await serveStatic(url.pathname, res);
-      if (served) return;
+      if (url.pathname === "/director" || url.pathname.startsWith("/director/")) {
+        const rel = url.pathname.slice("/director".length) || "/";
+        if (await directorAppStatic.serve(rel, res)) return;
+      } else if (await pwaStatic.serve(url.pathname, res)) {
+        return;
+      }
     }
     sendError(res, 404, "not found", "NOT_FOUND");
   });

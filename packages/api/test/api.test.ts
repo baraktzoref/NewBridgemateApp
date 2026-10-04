@@ -430,3 +430,67 @@ test("round-advance route is director-gated too (401 without a token, 200 with t
     await close();
   }
 });
+
+// ---------------------------------------------------------------------------
+// Director overview (packages/director-app's data source) and /director static mount
+// ---------------------------------------------------------------------------
+
+test("GET overview is director-gated and reflects table/device/identification/result state", async () => {
+  const { api, close } = await startApp();
+  try {
+    const created = await createTestEvent(api, 4, 2); // 2 tables
+    const noAuth = await api.get(`/api/events/${created.eventId}/overview`);
+    assert.equal(noAuth.status, 401);
+
+    const header = await directorAuthHeader(api, created);
+    const token1 = created.tableTokens["1"]!;
+    await api.post(`/api/t/${token1}/connect`, { tableToken: token1, eventCode: created.eventCode });
+    await api.post(`/api/t/${token1}/identify`, {
+      clientEventId: "id-ns", side: "NS", player1: { kind: "guest", name: "Alice" }, player2: { kind: "guest", name: "Bob" },
+    });
+    await api.post(`/api/t/${token1}/result`, { clientEventId: "r1", round: 1, board: 1, result: { kind: "passout" } });
+
+    const { status, body } = await api.get(`/api/events/${created.eventId}/overview`, header);
+    assert.equal(status, 200);
+    const overview = body as { event: { tables: number }; tables: Array<{ table: number; device: { connected: boolean }; ns: { identified: boolean }; ew: { identified: boolean }; results: unknown[]; resultsEntered: number; boards: number[] }> };
+    assert.equal(overview.tables.length, 2);
+    const t1 = overview.tables.find((t) => t.table === 1)!;
+    assert.equal(t1.device.connected, true);
+    assert.equal(t1.ns.identified, true);
+    assert.equal(t1.ew.identified, false);
+    assert.equal(t1.resultsEntered, 1);
+    assert.deepEqual(t1.boards, [1, 2]);
+    const t2 = overview.tables.find((t) => t.table === 2)!;
+    assert.equal(t2.device.connected, false);
+  } finally {
+    await close();
+  }
+});
+
+test("GET /director serves the director app's shell, and its JS/CSS resolve under the /director prefix", async () => {
+  const { api, close } = await startApp();
+  try {
+    const { base } = api;
+    const shell = await fetch(`${base}/director`);
+    assert.equal(shell.status, 200);
+    assert.match(shell.headers.get("content-type") ?? "", /text\/html/);
+    const html = await shell.text();
+    assert.match(html, /<html/i);
+
+    const js = await fetch(`${base}/director/js/app.js`);
+    assert.equal(js.status, 200);
+    assert.match(js.headers.get("content-type") ?? "", /javascript/);
+
+    const css = await fetch(`${base}/director/styles.css`);
+    assert.equal(css.status, 200);
+    assert.match(css.headers.get("content-type") ?? "", /css/);
+
+    // The table pwa's own root is untouched by the /director mount.
+    const pwaRoot = await fetch(`${base}/`);
+    assert.equal(pwaRoot.status, 200);
+    const pwaHtml = await pwaRoot.text();
+    assert.doesNotMatch(pwaHtml, /מסך מנהל/);
+  } finally {
+    await close();
+  }
+});

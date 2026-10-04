@@ -1,0 +1,78 @@
+:root {
+  --green: #1b4332;
+  --green-dark: #0f2a1d;
+  --red: #9b2226;
+  --amber: #b8860b;
+  --bg: #f4f6f4;
+  font-size: 16px;
+}
+
+* { box-sizing: border-box; }
+
+body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Arial, sans-serif; background: var(--bg); color: #1a1a1a; }
+
+header {
+  background: var(--green);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  padding: 0.75rem 1rem;
+}
+header h1 { font-size: 1.1rem; margin: 0; }
+#header-event-info { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+#header-event-info.hidden { display: none; }
+
+#status-bar { padding: 0.5rem 1rem; min-height: 1.5em; color: var(--green-dark); }
+#status-bar.status-error { color: var(--red); font-weight: bold; }
+
+main { padding: 1rem; max-width: 1100px; margin: 0 auto; }
+
+.screen.hidden { display: none; }
+
+label { display: block; margin: 0.75rem 0; font-size: 1rem; }
+label input, label select { display: block; width: 100%; margin-top: 0.25rem; padding: 0.5rem; font-size: 1rem; border: 1px solid #ccc; border-radius: 6px; }
+.checkbox-row { display: flex; align-items: center; gap: 0.5rem; }
+.checkbox-row input { width: auto; }
+
+fieldset { border: 1px solid #ddd; border-radius: 8px; margin: 0.75rem 0; padding: 0.75rem; }
+.seat-picker { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.seat-picker label { display: flex; align-items: center; gap: 0.4rem; width: auto; padding: 0 0.6rem; border: 1px solid #ccc; border-radius: 6px; margin: 0; }
+.seat-picker input { width: auto; }
+
+button { cursor: pointer; border-radius: 6px; font-size: 0.95rem; padding: 0.5rem 0.9rem; }
+.btn-primary { background: var(--green); color: white; border: none; width: 100%; }
+.btn-secondary { background: white; color: var(--green-dark); border: 2px solid var(--green); width: 100%; }
+.btn-small { background: rgba(255,255,255,0.15); color: white; border: 1px solid rgba(255,255,255,0.4); }
+.btn-danger { background: var(--red); color: white; border: none; }
+.button-row { display: flex; gap: 0.75rem; margin-top: 1rem; }
+.button-row button { flex: 1; }
+.error-text { color: var(--red); min-height: 1.2em; }
+.hint { color: #666; font-size: 0.85rem; }
+
+.alerts-list { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.alert-row { background: #fff3cd; border: 1px solid var(--amber); border-radius: 8px; padding: 0.6rem 0.9rem; display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; }
+.alert-row button { background: none; border: none; color: var(--green-dark); font-size: 1.2rem; }
+
+.table-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 0.75rem; }
+.table-card { background: white; border-radius: 10px; padding: 0.9rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+.table-card.locked { border: 2px solid var(--amber); }
+.table-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+.table-card-header strong { font-size: 1.1rem; }
+.badge { font-size: 0.75rem; padding: 0.15rem 0.5rem; border-radius: 10px; background: #e0e0e0; }
+.badge.ok { background: #d4edda; color: #1b4332; }
+.badge.warn { background: #ffe8a3; color: #6b4c00; }
+.badge.bad { background: #f8d7da; color: var(--red); }
+.table-card-row { display: flex; justify-content: space-between; font-size: 0.9rem; margin: 0.25rem 0; color: #444; }
+.table-card-actions { display: flex; gap: 0.4rem; margin-top: 0.6rem; flex-wrap: wrap; }
+.table-card-actions button { flex: 1; min-width: 5.5rem; font-size: 0.85rem; background: #eee; border: 1px solid #ccc; }
+
+.board-list { list-style: none; padding: 0; margin: 0.6rem 0 0; display: flex; flex-direction: column; gap: 0.4rem; }
+.board-row { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; background: #f8f8f8; border-radius: 6px; padding: 0.4rem 0.6rem; font-size: 0.85rem; }
+.board-row button { font-size: 0.8rem; padding: 0.3rem 0.6rem; background: #eee; border: 1px solid #ccc; }
+
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; padding: 1rem; }
+.modal.hidden { display: none; }
+.modal-content { background: white; border-radius: 10px; padding: 1.25rem; max-width: 420px; width: 100%; max-height: 90vh; overflow-y: auto; }

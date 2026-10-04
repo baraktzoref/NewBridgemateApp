@@ -16,7 +16,9 @@
     "test:api": "cd packages/api && node --experimental-strip-types --experimental-sqlite --test test/*.test.ts",
     "test:pwa": "cd packages/pwa && node --experimental-strip-types --test test/unit/*.test.ts",
     "test:pwa:e2e": "cd packages/pwa && node --experimental-strip-types --experimental-sqlite --test test/e2e/*.test.ts",
-    "test": "npm run test:movement && npm run test:scoring && npm run test:shared && npm run test:server && npm run test:api && npm run test:pwa",
-    "test:all": "npm run test && npm run test:pwa:e2e"
+    "test:director-app": "cd packages/director-app && node --experimental-strip-types --test test/unit/*.test.ts",
+    "test:director-app:e2e": "cd packages/director-app && node --experimental-strip-types --experimental-sqlite --test test/e2e/*.test.ts",
+    "test": "npm run test:movement && npm run test:scoring && npm run test:shared && npm run test:server && npm run test:api && npm run test:pwa && npm run test:director-app",
+    "test:all": "npm run test && npm run test:pwa:e2e && npm run test:director-app:e2e"
   }
 }

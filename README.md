@@ -45,6 +45,15 @@ curl -X POST http://localhost:8080/api/events/<eventId>/director-login -d '{"pin
 
 `npm run test:pwa:e2e` ו-`npm run test:director-app:e2e` מריצים Playwright מול Chromium מותקן-מראש (`/opt/pw-browsers`), נגד שרת `packages/api` אמיתי. מכיוון שאין גישה ל-npm registry בסביבת הפיתוח, חבילת ה-Node של Playwright אינה ניתנת להתקנה רגילה; `packages/pwa/node_modules/playwright` ו-`packages/director-app/node_modules/playwright` (ו-`playwright-core`) הם סימלינקים להתקנה הגלובלית הקיימת בסביבה (`/opt/npm-tools/node_modules`). בסביבה חדשה בלי אותם נתיבים, יש להתקין `playwright`/`playwright-core` כרגיל (`npm install`) או לעדכן את הסימלינקים בהתאם.
 
+## פיילוט על מחשב Windows
+
+להרצת ערב אמיתי במועדון, עם מחשב Windows אחד ושולחנות שמתחברים דרך
+WiFi מהטלפונים — ראו [`README-WINDOWS.md`](./README-WINDOWS.md). כולל
+סקריפטי `.bat` תחת `windows/` (`install.bat`, `start-server.bat`,
+`create-event.bat`) ו-`scripts/create-event.mjs`, שיוצר אירוע מול
+שרת רץ ומפיק גיליון הדפסה עם כתובת לכל שולחן, קוד האירוע וה-PIN
+החד-פעמי של המנהל.
+
 ## דרישות
 
 - Node.js >= 22.5 (נדרש עבור `node:sqlite` המובנה, בו משתמש `packages/server`)

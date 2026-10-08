@@ -7,6 +7,19 @@
 כמה קבצי `.bat` שמריצים את Node.js בשבילכם. זה דורש שהמחשב והטלפונים
 יהיו **על אותה רשת WiFi** (למשל רשת ה-WiFi של המועדון).
 
+## התקנה בקובץ אחד (setup.exe) — מומלץ
+
+במקום הסקריפטים שלמטה, אפשר להשתמש במתקין אחד שכולל Node.js נייד, כלל חומת אש לפורט 8080 וקיצורי דרך
+("Start Bridge Server", "Create New Event", "Director Screen"):
+
+1. ב-GitHub: Actions > "Build Windows installer" > Run workflow (או לדחוף תג `v1.0.0`, ואז הקובץ מצורף ל-Release).
+2. מורידים את `NewBridgemate-Setup-*.exe` מה-Artifacts, מעבירים למחשב ה-Windows ומריצים.
+3. מפעילים "Start Bridge Server", ואז "Create New Event". מסד הנתונים נשמר ב-`C:\ProgramData\NewBridgemate`, וגיליון ההדפסה ב-`Documents\NewBridgemate`.
+
+המתקין נבנה ב-CI ולא נבדק עדיין על מחשב Windows אמיתי — ההרצה הראשונה צריכה להיות בדיקה.
+
+## התקנה ידנית מהקוד (ללא מתקין)
+
 ## מה צריך מראש
 
 1. מחשב Windows, מחובר לרשת WiFi שגם הטלפונים יתחברו אליה.

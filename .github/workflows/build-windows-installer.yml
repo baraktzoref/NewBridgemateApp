@@ -1,0 +1,70 @@
+name: Build Windows installer
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+env:
+  NODE_VERSION: "22.22.0"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Run tests (unit + API, no browser)
+        shell: bash
+        run: npm test
+
+      - name: Download portable Node.js
+        shell: pwsh
+        run: |
+          $url = "https://nodejs.org/dist/v$env:NODE_VERSION/node-v$env:NODE_VERSION-win-x64.zip"
+          Invoke-WebRequest $url -OutFile node.zip
+          Expand-Archive node.zip -DestinationPath node-dl
+          Copy-Item "node-dl/node-v$env:NODE_VERSION-win-x64/node.exe" node-portable.exe
+
+      - name: Stage bundle
+        shell: bash
+        run: node windows/installer/stage.mjs --out dist/stage --node node-portable.exe
+
+      - name: Smoke-test the staged bundle with the portable node.exe
+        shell: pwsh
+        run: |
+          $env:PORT = "8099"
+          $env:DB_PATH = "$PWD/smoke.sqlite"
+          $p = Start-Process -FilePath "$PWD/dist/stage/node.exe" `
+            -ArgumentList "--experimental-strip-types","--experimental-sqlite","packages/api/src/main.ts" `
+            -WorkingDirectory "$PWD/dist/stage" -PassThru
+          Start-Sleep -Seconds 4
+          if ((Invoke-WebRequest http://localhost:8099/director -UseBasicParsing).StatusCode -ne 200) { throw "director page not served" }
+          if ((Invoke-WebRequest http://localhost:8099/ -UseBasicParsing).StatusCode -ne 200) { throw "pwa not served" }
+          Stop-Process $p.Id
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup -y --no-progress
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $version = if ($env:GITHUB_REF -like "refs/tags/v*") { $env:GITHUB_REF_NAME.TrimStart("v") } else { "0.0.0-dev" }
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$version" "/DStageDir=$PWD\dist\stage" "/DOutDir=$PWD\dist" windows\installer\bridge.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NewBridgemate-Setup
+          path: dist/NewBridgemate-Setup-*.exe
+
+      - name: Attach to GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/NewBridgemate-Setup-*.exe

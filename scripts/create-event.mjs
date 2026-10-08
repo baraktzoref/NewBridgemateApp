@@ -60,7 +60,8 @@ function detectLanIp() {
 
 function openInBrowser(filePath) {
   const cmd = process.platform === "win32" ? "start" : process.platform === "darwin" ? "open" : "xdg-open";
-  const args = process.platform === "win32" ? ["", filePath] : [filePath];
+  // With shell:true on Windows the args are joined by spaces, so the path must be pre-quoted.
+  const args = process.platform === "win32" ? ["\"\"", `"${filePath}"`] : [filePath];
   try {
     const child = spawn(cmd, args, { shell: process.platform === "win32", stdio: "ignore", detached: true });
     child.unref();
